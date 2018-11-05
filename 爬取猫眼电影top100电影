@@ -1,0 +1,57 @@
+import re   #正则需要用到
+import requests  #模拟浏览器请求所用到的库
+import os           #文件操作
+from fake_useragent import UserAgent   #代理
+
+ua = UserAgent()
+
+
+def get_response(url):   #获取响应体
+    headers = {
+        'User-Agent': ua.random   #随机的代理
+    }
+    html = requests.get(url, headers=headers).text   #把响应体赋给html
+    return html    #返回响应体内容，以供下文引用
+
+
+def get_info(html):
+    rr = (r'<dd>.*?<i.*?>(.*?)</i>.*?title="(.*?)".*?data-src='
+          r'"(.*?)".*?star.*?>(.*?)</p>.*?releasetime.*?>(.*?)</p>'
+          r'.*?score-num">\s(<p.*?</p>)?')         #用正则匹配所感兴趣的内容
+    pattern = re.compile(rr, re.S)
+    results = re.findall(pattern, html)    #返回匹配到内容的列表
+    with open('d:/data/maoyanmovies.csv','a',encoding='gb18030') as m:
+        for result in results:  #将匹配到的内容一条一条存到。。.csv文件中
+            rate = result[0]
+            name = result[1]
+            href = result[2]
+            actor = '/'.join(result[3].strip()[3:].split(','))#主演
+            releasetime=result[4].strip()[5:]#上映时间
+            if result[5].strip() == '':
+                score = '0'
+            else:
+                r = re.search(r'<i.*?integer.*?>(.*?)</i>.*?fraction.*?>(.*?)</i>', result[5], re.S)
+                score = r.group(1) + r.group(2)  # 分数
+            print(rate, name, href, actor, releasetime, score)
+            movie = rate + ',' + name + ',' + href + ',' + actor + ',' + releasetime + ',' + score + '\n'
+            m.write(movie)  # 逐行写入表文件
+        m.close()
+
+
+def main():
+    if not os.path.exists('d:/data'):  # 判断文件是否存在
+        os.mkdir('d:/data')  # 如果不存在，就创建文件夹
+    # 首先创建表文件，并加入第一列的列名
+    with open('d:/data/maoyanmovies.csv', 'w') as f:
+        col = 'rate' + ',' + 'name' + ',' + 'href' + ',' + 'actor' + ',' + 'releasetime' + ',' + 'score' + '\n'
+        f.write(col)
+    f.close()
+    # 进行翻页
+    for i in range(0, 100, 10):
+        url = 'http://maoyan.com/board/4?offset=' + str(i)
+        html = get_response(url)  # 获取响应信息
+        get_info(html)  # 提取信息
+
+
+if __name__ == '__main__':
+    main()
